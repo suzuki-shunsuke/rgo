@@ -1,5 +1,7 @@
 # rgo
 
+[![License](http://img.shields.io/badge/license-mit-blue.svg?style=flat-square)](https://raw.githubusercontent.com/suzuki-shunsuke/rgo/main/LICENSE) | [script](rgo)
+
 rgo is a tiny script to release a Homebrew-tap recipe, Scoop App Manifest, and a winget manifest built with GoReleaser
 
 :warning: Winget isn't support yet.
@@ -9,6 +11,10 @@ rgo is a tiny script to release a Homebrew-tap recipe, Scoop App Manifest, and a
 - Bash
 - Git
 - GitHub CLI
+
+## How To Install
+
+Please copy [rgo](rgo) into `$PATH`.
 
 ## How does it work?
 
