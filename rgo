@@ -49,7 +49,7 @@ else
 fi
 
 # Push scoop
-if [ -d "${artifact_name}/homebrew" ]; then
+if [ -d "${artifact_name}/scoop" ]; then
     echo "[INFO] Checking out scoop-bucket" >&2
     git clone --depth 1 "$GITHUB_SERVER_URL/${GITHUB_REPOSITORY_OWNER}/scoop-bucket"
     cp "${artifact_name}"/scoop/*.json "scoop-bucket"
