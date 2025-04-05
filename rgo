@@ -29,29 +29,38 @@ tempdir=$(mktemp -d)
 echo "[INFO] Temporary directory: $tempdir" >&2
 cd "$tempdir"
 # Download the GitHub Actions Artifact
+artifact_name=goreleaser
 echo "[INFO] Downloading GitHub Actions Artifact" >&2
-gh run download -R "$GITHUB_REPOSITORY" "$run_id" --pattern goreleaser
+gh run download -R "$GITHUB_REPOSITORY" "$run_id" --pattern "$artifact_name"
 
 # Push homebrew
-echo "[INFO] Checking out homebrew-${GITHUB_REPOSITORY_NAME}" >&2
-git clone --depth 1 "$GITHUB_SERVER_URL/${GITHUB_REPOSITORY_OWNER}/homebrew-${GITHUB_REPOSITORY_NAME}"
-cp goreleaser/homebrew/*.rb "homebrew-${GITHUB_REPOSITORY_NAME}"
-pushd "homebrew-${GITHUB_REPOSITORY_NAME}"
-echo "[INFO] Commit and push homebrew-${GITHUB_REPOSITORY_NAME}" >&2
-git add *.rb
-git commit -m "Brew formula update for $GITHUB_REPOSITORY_NAME version $version"
-git push origin main
-popd
+if [ -d "${artifact_name}/homebrew" ]; then
+    echo "[INFO] Checking out homebrew-${GITHUB_REPOSITORY_NAME}" >&2
+    git clone --depth 1 "$GITHUB_SERVER_URL/${GITHUB_REPOSITORY_OWNER}/homebrew-${GITHUB_REPOSITORY_NAME}"
+    cp "${artifact_name}"/homebrew/*.rb "homebrew-${GITHUB_REPOSITORY_NAME}"
+    pushd "homebrew-${GITHUB_REPOSITORY_NAME}"
+    echo "[INFO] Commit and push homebrew-${GITHUB_REPOSITORY_NAME}" >&2
+    git add *.rb
+    git commit -m "Brew formula update for $GITHUB_REPOSITORY_NAME version $version"
+    git push origin main
+    popd
+else
+    echo "[INFO] Homebrew-tap recipe isn't found" >&2
+fi
 
 # Push scoop
-echo "[INFO] Checking out scoop-bucket" >&2
-git clone --depth 1 "$GITHUB_SERVER_URL/${GITHUB_REPOSITORY_OWNER}/scoop-bucket"
-cp goreleaser/scoop/*.json "scoop-bucket"
-pushd "scoop-bucket"
-echo "[INFO] Commit and push scoop" >&2
-git add *.json
-git commit -m "Scoop update for $GITHUB_REPOSITORY_NAME version $version"
-git push origin main
+if [ -d "${artifact_name}/homebrew" ]; then
+    echo "[INFO] Checking out scoop-bucket" >&2
+    git clone --depth 1 "$GITHUB_SERVER_URL/${GITHUB_REPOSITORY_OWNER}/scoop-bucket"
+    cp "${artifact_name}"/scoop/*.json "scoop-bucket"
+    pushd "scoop-bucket"
+    echo "[INFO] Commit and push scoop" >&2
+    git add *.json
+    git commit -m "Scoop update for $GITHUB_REPOSITORY_NAME version $version"
+    git push origin main
+else
+    echo "[INFO] Scoop manifest isn't found" >&2
+fi
 
 echo "[INFO] Removing the temporary directory" >&2
 rm -Rf "$tempdir"
