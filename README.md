@@ -6,6 +6,21 @@ rgo is a tiny script to release a Homebrew-tap recipe, Scoop App Manifest, and a
 
 :warning: Winget isn't support yet.
 
+## Why is rgo necessary?
+
+To release Homebrew-tap recipe, Scoop App Manifest, and a winget manifest built with GoReleaser without passing a GitHub Personal Access Token or GitHub App to CI.
+
+When we build and release Go Application using GoReleaser in CI, we usually release files such as Homebrew-tap recipe in CI too.
+But these files are hosted in different repositories from Go code, so GitHub Actions token isn't available to release them.
+Either a personal access token or GitHub App is required, which is undesirable in terms of security because these secrets may be leaked and abused.
+
+rgo is a tool to resolve this issue.
+CI builds files such as Homebrew-tap recipe and uploads them to GitHub Actions Artifacts, and rgo downloads and releases them from out of CI (probably your machine).
+Then you don't need to pass secrets to CI.
+
+The drawback of rgo is that rgo depends on the environment out of CI (probably your machine).
+But released files are built in CI. rgo only downloads and releases them. So we think we can accept the drawback.
+
 ## Requirements
 
 - Bash
