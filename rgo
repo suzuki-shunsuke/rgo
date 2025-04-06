@@ -62,5 +62,35 @@ else
     echo "[INFO] Scoop manifest isn't found" >&2
 fi
 
+# Winget
+if [ -d "${artifact_name}/winget" ]; then
+    # Checkout suzuki-shunsuke/winget-pkgs
+    # Push to suzuki-shunsuke/winget-pkgs
+    # Create a pull request to microsoft/winget-pkgs
+    WINGET_REPO_OWNER=suzuki-shunsuke
+    WINGET_NAME=aquaproj.aqua
+    echo "[INFO] Checking out winget-pkgs" >&2
+    git init winget-pkgs
+    pushd "winget-pkgs"
+    git remote add origin https://github.com/microsoft/winget-pkgs
+    git fetch --depth=1 origin master
+    branch="$WINGET_NAME-$version"
+    git checkout -b "$branch" origin/master
+    rm -R manifests
+    cp -R "../${artifact_name}"/winget/manifests .
+    echo "[INFO] Commit and push winget" >&2
+    find manifests -type f | xargs git add
+    git commit -m "Update $WINGET_NAME to $version"
+    git remote add fork "https://github.com/$WINGET_REPO_OWNER/winget-pkgs"
+    git push fork "$branch"
+    gh repo set-default https://github.com/microsoft/winget-pkgs
+    gh pr create \
+        --title "New version: $WINGET_NAME $version" \
+        --head "${WINGET_REPO_OWNER}:$branch" \
+        --body-file .github/PULL_REQUEST_TEMPLATE.md
+else
+    echo "[INFO] Winget manifest isn't found" >&2
+fi
+
 echo "[INFO] Removing the temporary directory" >&2
 rm -Rf "$tempdir"
