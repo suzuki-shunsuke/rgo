@@ -58,6 +58,7 @@ if [ -d "${artifact_name}/scoop" ]; then
     git add *.json
     git commit -m "Scoop update for $GITHUB_REPOSITORY_NAME version $version"
     git push origin main
+    popd
 else
     echo "[INFO] Scoop manifest isn't found" >&2
 fi
@@ -88,6 +89,7 @@ if [ -d "${artifact_name}/winget" ]; then
         --title "New version: $WINGET_NAME $version" \
         --head "${WINGET_REPO_OWNER}:$branch" \
         --body-file .github/PULL_REQUEST_TEMPLATE.md
+    popd
 else
     echo "[INFO] Winget manifest isn't found" >&2
 fi
