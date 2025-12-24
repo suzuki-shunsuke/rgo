@@ -93,7 +93,8 @@ if [ -d "${artifact_name}/winget" ]; then
     gh pr create \
         --title "New version: $WINGET_NAME $version" \
         --head "${WINGET_REPO_OWNER}:$branch" \
-        --body-file .github/PULL_REQUEST_TEMPLATE.md
+        --body-file .github/PULL_REQUEST_TEMPLATE.md \
+        --web
     popd
 else
     echo "[INFO] Winget manifest isn't found" >&2
