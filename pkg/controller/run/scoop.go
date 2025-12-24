@@ -33,7 +33,7 @@ func (c *Controller) pushScoop(ctx context.Context, logger *slog.Logger, repo co
 	}
 	repoURL := fmt.Sprintf("%s/%s/%s", serverURL, repo.Owner, repoName)
 
-	logger.Info("cloning scoop repository", slog.String("repo", repoURL))
+	logger.Info("cloning scoop repository", "repo", repoURL)
 	repoDir := filepath.Join(tempDir, repoName)
 	if err := c.exec.Run(ctx, logger, tempDir, "git", "clone", "--depth", "1", repoURL); err != nil {
 		return fmt.Errorf("clone scoop repository: %w", err)

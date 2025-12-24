@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"os"
 
 	"github.com/spf13/afero"
@@ -66,7 +67,7 @@ func Run(ctx context.Context, logger *slogutil.Logger, env *urfave.Env) error {
 
 func runAction(ctx context.Context, logger *slogutil.Logger, cmd *cli.Command, args *RunArgs) error {
 	if args.Version == "" {
-		return cli.Exit("version argument is required", 1)
+		return errors.New("version argument is required")
 	}
 	pwd, err := os.Getwd()
 	if err != nil {

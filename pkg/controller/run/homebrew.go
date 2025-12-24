@@ -41,7 +41,7 @@ func (c *Controller) pushHomebrew(ctx context.Context, logger *slog.Logger, repo
 	}
 	repoURL := fmt.Sprintf("%s/%s/%s", serverURL, repo.Owner, repoName)
 
-	logger.Info("cloning homebrew repository", slog.String("repo", repoURL))
+	logger.Info("cloning homebrew repository", "repo", repoURL)
 	repoDir := filepath.Join(tempDir, repoName)
 	if err := c.exec.Run(ctx, logger, tempDir, "git", "clone", "--depth", "1", repoURL); err != nil {
 		return fmt.Errorf("clone homebrew repository: %w", err)

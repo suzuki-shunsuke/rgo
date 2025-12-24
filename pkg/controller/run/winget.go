@@ -53,9 +53,9 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 	forkURL := fmt.Sprintf("https://github.com/%s/%s", forkOwner, forkName)
 
 	logger.Info("setting up winget repository",
-		slog.String("base", baseURL),
-		slog.String("fork", forkURL),
-		slog.String("branch", branch))
+		"base", baseURL,
+		"fork", forkURL,
+		"branch", branch)
 
 	// Initialize git repository
 	repoDir := filepath.Join(tempDir, "winget-pkgs")

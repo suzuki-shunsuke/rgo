@@ -36,11 +36,11 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 
 	// Create and push tag if run_id is not provided
 	if runID == "" {
-		if err := c.exec.Run(ctx, logger, c.param.PWD, "git", "tag", "-m", "chore: release "+c.param.Version, c.param.Version); err != nil {
-			return fmt.Errorf("create a git tag: %w", err)
+		if err := c.createTag(ctx, logger, c.param.Version); err != nil {
+			return err
 		}
-		if err := c.exec.Run(ctx, logger, c.param.PWD, "git", "push", "origin", c.param.Version); err != nil {
-			return fmt.Errorf("push a git tag: %w", err)
+		if err := c.pushTag(ctx, logger, c.param.Version); err != nil {
+			return err
 		}
 	}
 
@@ -66,7 +66,7 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	// Wait for workflow to complete
-	logger.Info("waiting for workflow to complete", slog.String("run_id", runID))
+	logger.Info("waiting for workflow to complete", "run_id", runID)
 	if err := c.exec.Run(ctx, logger, c.param.PWD, "gh", "run", "watch", "--exit-status", runID); err != nil {
 		return fmt.Errorf("wait for workflow run: %w", err)
 	}
@@ -77,7 +77,7 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 		return fmt.Errorf("create a temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tempDir)
-	logger.Info("created temporary directory", slog.String("path", tempDir))
+	logger.Info("created temporary directory", "path", tempDir)
 
 	// Download artifacts
 	artifactName := "goreleaser"
