@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 
+	"github.com/spf13/afero"
 	"github.com/suzuki-shunsuke/rgo/pkg/config"
 )
 
 func (c *Controller) processHomebrew(ctx context.Context, logger *slog.Logger, cfg *config.Config, tempDir, artifactName, serverURL string) error {
 	homebrewDir := filepath.Join(tempDir, artifactName, "homebrew")
-	if _, err := os.Stat(homebrewDir); os.IsNotExist(err) {
+	if exists, err := afero.Exists(c.fs, homebrewDir); err != nil || !exists {
 		logger.Info("Homebrew-tap recipe isn't found")
 		return nil
 	}
@@ -35,31 +35,18 @@ func (c *Controller) processHomebrew(ctx context.Context, logger *slog.Logger, c
 }
 
 func (c *Controller) pushHomebrew(ctx context.Context, logger *slog.Logger, repo config.Repository, projectName, tempDir, artifactName, serverURL string) error {
-	repoName := "homebrew-" + repo.Name
-	if repo.Name == "" {
-		repoName = "homebrew-" + projectName
-	}
-	repoURL := fmt.Sprintf("%s/%s/%s", serverURL, repo.Owner, repoName)
+	repoURL := fmt.Sprintf("%s/%s/%s", serverURL, repo.Owner, repo.Name)
 
 	logger.Info("cloning homebrew repository", "repo", repoURL)
-	repoDir := filepath.Join(tempDir, repoName)
+	repoDir := filepath.Join(tempDir, repo.Name)
 	if err := c.exec.Run(ctx, logger, tempDir, "git", "clone", "--depth", "1", repoURL); err != nil {
 		return fmt.Errorf("clone homebrew repository: %w", err)
 	}
 
 	// Copy homebrew files
 	homebrewDir := filepath.Join(tempDir, artifactName, "homebrew")
-	entries, err := os.ReadDir(homebrewDir)
-	if err != nil {
-		return fmt.Errorf("read homebrew directory: %w", err)
-	}
-
-	for _, entry := range entries {
-		src := filepath.Join(homebrewDir, entry.Name())
-		dst := filepath.Join(repoDir, entry.Name())
-		if err := copyFile(src, dst); err != nil {
-			return fmt.Errorf("copy homebrew file: %w", err)
-		}
+	if err := c.copyDir(homebrewDir, repoDir); err != nil {
+		return fmt.Errorf("copy homebrew directory: %w", err)
 	}
 
 	// Commit and push
@@ -80,10 +67,10 @@ func (c *Controller) pushHomebrew(ctx context.Context, logger *slog.Logger, repo
 	return nil
 }
 
-func copyFile(src, dst string) error {
-	data, err := os.ReadFile(src)
+func (c *Controller) copyFile(src, dst string) error {
+	data, err := afero.ReadFile(c.fs, src)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, data, 0o644) //nolint:gosec
+	return afero.WriteFile(c.fs, dst, data, 0o644) //nolint:gosec
 }

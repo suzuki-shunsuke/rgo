@@ -7,12 +7,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/spf13/afero"
 	"github.com/suzuki-shunsuke/rgo/pkg/config"
 )
 
 func (c *Controller) processScoop(ctx context.Context, logger *slog.Logger, cfg *config.Config, tempDir, artifactName, serverURL string) error {
 	scoopDir := filepath.Join(tempDir, artifactName, "scoop")
-	if _, err := os.Stat(scoopDir); os.IsNotExist(err) {
+	if _, err := c.fs.Stat(scoopDir); os.IsNotExist(err) {
 		logger.Info("Scoop manifest isn't found")
 		return nil
 	}
@@ -27,21 +28,17 @@ func (c *Controller) processScoop(ctx context.Context, logger *slog.Logger, cfg 
 }
 
 func (c *Controller) pushScoop(ctx context.Context, logger *slog.Logger, repo config.Repository, projectName, tempDir, artifactName, serverURL string) error {
-	repoName := repo.Name
-	if repoName == "" {
-		repoName = "scoop-bucket"
-	}
-	repoURL := fmt.Sprintf("%s/%s/%s", serverURL, repo.Owner, repoName)
+	repoURL := fmt.Sprintf("%s/%s/%s", serverURL, repo.Owner, repo.Name)
 
 	logger.Info("cloning scoop repository", "repo", repoURL)
-	repoDir := filepath.Join(tempDir, repoName)
+	repoDir := filepath.Join(tempDir, repo.Name)
 	if err := c.exec.Run(ctx, logger, tempDir, "git", "clone", "--depth", "1", repoURL); err != nil {
 		return fmt.Errorf("clone scoop repository: %w", err)
 	}
 
 	// Copy scoop JSON files
 	scoopDir := filepath.Join(tempDir, artifactName, "scoop")
-	entries, err := os.ReadDir(scoopDir)
+	entries, err := afero.ReadDir(c.fs, scoopDir)
 	if err != nil {
 		return fmt.Errorf("read scoop directory: %w", err)
 	}
@@ -52,7 +49,7 @@ func (c *Controller) pushScoop(ctx context.Context, logger *slog.Logger, repo co
 		}
 		src := filepath.Join(scoopDir, entry.Name())
 		dst := filepath.Join(repoDir, entry.Name())
-		if err := copyFile(src, dst); err != nil {
+		if err := c.copyFile(src, dst); err != nil {
 			return fmt.Errorf("copy scoop file: %w", err)
 		}
 	}

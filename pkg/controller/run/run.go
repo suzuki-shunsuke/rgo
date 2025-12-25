@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/afero"
 	"github.com/suzuki-shunsuke/rgo/pkg/config"
 )
 
@@ -59,31 +60,30 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 	if runID == "" {
 		logger.Info("waiting for workflow to start")
 		time.Sleep(10 * time.Second)
-		runID, err = c.exec.Output(ctx, logger, c.param.PWD, "gh", "run", "list", "-w", workflow, "-L", "1", "--json", "databaseId", "--jq", ".[].databaseId")
+		runID, err = c.getRunID(ctx, logger, workflow)
 		if err != nil {
-			return fmt.Errorf("get workflow run ID: %w", err)
+			return err
 		}
 	}
 
 	// Wait for workflow to complete
 	logger.Info("waiting for workflow to complete", "run_id", runID)
-	if err := c.exec.Run(ctx, logger, c.param.PWD, "gh", "run", "watch", "--exit-status", runID); err != nil {
-		return fmt.Errorf("wait for workflow run: %w", err)
+	if err := c.watchRun(ctx, logger, runID); err != nil {
+		return err
 	}
 
 	// Create temporary directory
-	tempDir, err := os.MkdirTemp("", "rgo-*")
+	tempDir, err := afero.TempDir(c.fs, "", "rgo-")
 	if err != nil {
 		return fmt.Errorf("create a temporary directory: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
 	logger.Info("created temporary directory", "path", tempDir)
 
 	// Download artifacts
 	artifactName := "goreleaser"
 	logger.Info("downloading artifacts")
-	if err := c.exec.Run(ctx, logger, tempDir, "gh", "run", "download", "-R", repo, runID, "--pattern", artifactName); err != nil {
-		return fmt.Errorf("download artifacts: %w", err)
+	if err := c.downloadArtifacts(ctx, logger, tempDir, repo, runID); err != nil {
+		return err
 	}
 
 	serverURL := os.Getenv("GITHUB_SERVER_URL")

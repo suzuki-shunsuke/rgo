@@ -9,12 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/afero"
 	"github.com/suzuki-shunsuke/rgo/pkg/config"
 )
 
 func (c *Controller) processWinget(ctx context.Context, logger *slog.Logger, cfg *config.Config, tempDir, artifactName string) error {
 	wingetDir := filepath.Join(tempDir, artifactName, "winget")
-	if _, err := os.Stat(wingetDir); os.IsNotExist(err) {
+	if _, err := c.fs.Stat(wingetDir); os.IsNotExist(err) {
 		logger.Info("Winget manifest isn't found")
 		return nil
 	}
@@ -32,20 +33,20 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 	// Get configuration
 	forkOwner := winget.Repository.Owner
 	forkName := winget.Repository.Name
-	if forkName == "" {
-		forkName = "winget-pkgs"
-	}
 
 	baseOwner := winget.Repository.PullRequest.Base.Owner
 	baseName := winget.Repository.PullRequest.Base.Name
 	if baseName == "" {
-		baseName = "winget-pkgs"
+		baseName = forkName
 	}
 
 	// Expand branch template: "aqua-{{.Version}}" -> "aqua-v2.0.0"
 	branch := winget.Repository.Branch
 	branch = strings.ReplaceAll(branch, "{{.Version}}", c.param.Version)
 	branch = strings.ReplaceAll(branch, "{{ .Version }}", c.param.Version)
+	if branch == "" {
+		branch = "main" // TODO default branch name
+	}
 
 	wingetName := winget.Publisher + "." + projectName
 
@@ -79,18 +80,18 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 
 	// Remove existing manifests directory and copy new one
 	manifestsDir := filepath.Join(repoDir, "manifests")
-	if err := os.RemoveAll(manifestsDir); err != nil {
+	if err := c.fs.RemoveAll(manifestsDir); err != nil {
 		return fmt.Errorf("remove manifests directory: %w", err)
 	}
 
 	srcManifestsDir := filepath.Join(tempDir, artifactName, "winget", "manifests")
-	if err := copyDir(srcManifestsDir, manifestsDir); err != nil {
+	if err := c.copyDir(srcManifestsDir, manifestsDir); err != nil {
 		return fmt.Errorf("copy manifests: %w", err)
 	}
 
 	// Add all manifest files
 	logger.Info("committing winget changes")
-	if err := addManifestFiles(ctx, logger, c.exec, repoDir); err != nil {
+	if err := c.addManifestFiles(ctx, logger, c.exec, repoDir); err != nil {
 		return fmt.Errorf("add manifest files: %w", err)
 	}
 
@@ -119,7 +120,7 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 	head := fmt.Sprintf("%s:%s", forkOwner, branch)
 
 	prArgs := []string{"pr", "create", "--title", prTitle, "--head", head}
-	if _, err := os.Stat(prBody); err == nil {
+	if _, err := c.fs.Stat(prBody); err == nil {
 		prArgs = append(prArgs, "--body-file", prBody)
 	} else {
 		prArgs = append(prArgs, "--body", "")
@@ -133,11 +134,13 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 	return nil
 }
 
-func addManifestFiles(ctx context.Context, logger *slog.Logger, exec interface {
+func (c *Controller) addManifestFiles(ctx context.Context, logger *slog.Logger, exec interface {
 	Run(ctx context.Context, logger *slog.Logger, dir string, name string, args ...string) error
-}, repoDir string) error {
+}, repoDir string,
+) error {
 	manifestsDir := filepath.Join(repoDir, "manifests")
-	return filepath.WalkDir(manifestsDir, func(path string, d fs.DirEntry, err error) error {
+	files := []string{}
+	if err := fs.WalkDir(afero.NewIOFS(c.fs), manifestsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -148,11 +151,15 @@ func addManifestFiles(ctx context.Context, logger *slog.Logger, exec interface {
 		if err != nil {
 			return err
 		}
-		return exec.Run(ctx, logger, repoDir, "git", "add", relPath)
-	})
+		files = append(files, relPath)
+		return nil
+	}); err != nil {
+		return err
+	}
+	return exec.Run(ctx, logger, repoDir, "git", append([]string{"add"}, files...)...)
 }
 
-func copyDir(src, dst string) error {
+func (c *Controller) copyDir(src, dst string) error {
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -165,9 +172,9 @@ func copyDir(src, dst string) error {
 		dstPath := filepath.Join(dst, relPath)
 
 		if d.IsDir() {
-			return os.MkdirAll(dstPath, 0o755)
+			return c.fs.MkdirAll(dstPath, 0o755)
 		}
 
-		return copyFile(path, dstPath)
+		return c.copyFile(path, dstPath)
 	})
 }
