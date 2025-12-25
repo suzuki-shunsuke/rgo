@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ type ParamRun struct {
 	Version        string
 	RunID          string
 	Workflow       string
+	Publish        []string
 }
 
 func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
@@ -88,18 +90,24 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	// Process Homebrew
-	if err := c.processHomebrew(ctx, logger, cfg, tempDir, artifactName, serverURL); err != nil {
-		return fmt.Errorf("process Homebrew: %w", err)
+	if c.shouldPublish("homebrew") {
+		if err := c.processHomebrew(ctx, logger, cfg, tempDir, artifactName, serverURL); err != nil {
+			return fmt.Errorf("process Homebrew: %w", err)
+		}
 	}
 
 	// Process Scoop
-	if err := c.processScoop(ctx, logger, cfg, tempDir, artifactName, serverURL); err != nil {
-		return fmt.Errorf("process Scoop: %w", err)
+	if c.shouldPublish("scoop") {
+		if err := c.processScoop(ctx, logger, cfg, tempDir, artifactName, serverURL); err != nil {
+			return fmt.Errorf("process Scoop: %w", err)
+		}
 	}
 
 	// Process Winget
-	if err := c.processWinget(ctx, logger, cfg, tempDir, artifactName); err != nil {
-		return fmt.Errorf("process Winget: %w", err)
+	if c.shouldPublish("winget") {
+		if err := c.processWinget(ctx, logger, cfg, tempDir, artifactName); err != nil {
+			return fmt.Errorf("process Winget: %w", err)
+		}
 	}
 
 	logger.Info("release completed successfully")
@@ -113,4 +121,11 @@ func wait(ctx context.Context, d time.Duration) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (c *Controller) shouldPublish(name string) bool {
+	if len(c.param.Publish) == 0 {
+		return true
+	}
+	return slices.Contains(c.param.Publish, name)
 }

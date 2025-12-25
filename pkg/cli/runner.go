@@ -18,6 +18,7 @@ type RunArgs struct {
 	Workflow string
 	RunID    string
 	Version  string
+	Publish  []string
 }
 
 func Run(ctx context.Context, logger *slogutil.Logger, env *urfave.Env) error {
@@ -49,6 +50,12 @@ func Run(ctx context.Context, logger *slogutil.Logger, env *urfave.Env) error {
 						Usage:       "GitHub Actions run ID (skip tag creation if provided)",
 						Destination: &runArgs.RunID,
 					},
+					&cli.StringSliceFlag{
+						Name:        "publish",
+						Aliases:     []string{"p"},
+						Usage:       "Publishers to process (homebrew, scoop, winget)",
+						Destination: &runArgs.Publish,
+					},
 				},
 				Arguments: []cli.Argument{
 					&cli.StringArg{
@@ -74,6 +81,7 @@ func runAction(ctx context.Context, logger *slogutil.Logger, cmd *cli.Command, a
 		Version:        args.Version,
 		RunID:          args.RunID,
 		Workflow:       args.Workflow,
+		Publish:        args.Publish,
 	}
 	exec := &cmdexec.Executor{
 		Stdout: cmd.Writer,
