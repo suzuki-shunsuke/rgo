@@ -24,7 +24,7 @@ func (c *Controller) getRunID(ctx context.Context, logger *slog.Logger, workflow
 }
 
 func (c *Controller) watchRun(ctx context.Context, logger *slog.Logger, runID string) error {
-	if err := c.exec.Run(ctx, logger, c.param.PWD, "gh", "run", "watch", "--exit-status", runID); err != nil {
+	if err := c.exec.Run(ctx, logger, "", "gh", "run", "watch", "--exit-status", runID); err != nil {
 		return fmt.Errorf("wait for workflow run: %w", err)
 	}
 	return nil

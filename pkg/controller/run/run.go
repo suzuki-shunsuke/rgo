@@ -15,7 +15,6 @@ import (
 
 type ParamRun struct {
 	ConfigFilePath string
-	PWD            string
 	Stderr         io.Writer
 	Version        string
 	RunID          string
@@ -28,7 +27,7 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 		return fmt.Errorf("read a config file: %w", err)
 	}
 
-	repo, err := c.exec.Output(ctx, logger, c.param.PWD, "gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner")
+	repo, err := c.exec.Output(ctx, logger, "", "gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner")
 	if err != nil {
 		return fmt.Errorf("get repository name: %w", err)
 	}

@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"os"
 
 	"github.com/spf13/afero"
 	"github.com/suzuki-shunsuke/rgo/pkg/cmdexec"
@@ -70,13 +69,8 @@ func runAction(ctx context.Context, logger *slogutil.Logger, cmd *cli.Command, a
 	if args.Version == "" {
 		return errors.New("version argument is required")
 	}
-	pwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
 	param := &run.ParamRun{
 		ConfigFilePath: args.Config,
-		PWD:            pwd,
 		Stderr:         cmd.ErrWriter,
 		Version:        args.Version,
 		RunID:          args.RunID,
