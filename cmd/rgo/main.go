@@ -8,5 +8,5 @@ import (
 var version = ""
 
 func main() {
-	urfave.Main("pinact", version, cli.Run)
+	urfave.Main("rgo", version, cli.Run)
 }
