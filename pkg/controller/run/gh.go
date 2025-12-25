@@ -6,6 +6,15 @@ import (
 	"log/slog"
 )
 
+func (c *Controller) getDefaultBranch(ctx context.Context, logger *slog.Logger, owner, repo string) (string, error) {
+	logger.Info("getting default branch", "owner", owner, "repo", repo)
+	r, _, err := c.ghRepo.Get(ctx, owner, repo)
+	if err != nil {
+		return "", fmt.Errorf("get repository: %w", err)
+	}
+	return r.GetDefaultBranch(), nil
+}
+
 func (c *Controller) getRunID(ctx context.Context, logger *slog.Logger, workflow string) (string, error) {
 	runID, err := c.exec.Output(ctx, logger, "", "gh", "run", "list", "-w", workflow, "-L", "1", "--json", "databaseId", "--jq", ".[].databaseId")
 	if err != nil {

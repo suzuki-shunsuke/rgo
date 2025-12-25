@@ -41,7 +41,11 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 	}
 	baseBranch := winget.Repository.PullRequest.Base.Branch
 	if baseBranch == "" {
-		baseBranch = "master" // TODO Get the default branch by GitHub API
+		var err error
+		baseBranch, err = c.getDefaultBranch(ctx, logger, baseOwner, baseName)
+		if err != nil {
+			return fmt.Errorf("get base repository default branch: %w", err)
+		}
 	}
 
 	// Expand headBranch template: "aqua-{{.Version}}" -> "aqua-v2.0.0"
@@ -49,7 +53,11 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 	headBranch = strings.ReplaceAll(headBranch, "{{.Version}}", c.param.Version)
 	headBranch = strings.ReplaceAll(headBranch, "{{ .Version }}", c.param.Version)
 	if headBranch == "" {
-		headBranch = "main" // TODO Get the default branch by GitHub API
+		var err error
+		headBranch, err = c.getDefaultBranch(ctx, logger, forkOwner, forkName)
+		if err != nil {
+			return fmt.Errorf("get fork repository default branch: %w", err)
+		}
 	}
 
 	wingetName := winget.Publisher + "." + projectName

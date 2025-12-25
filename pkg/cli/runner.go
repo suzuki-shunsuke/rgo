@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/google/go-github/v80/github"
 	"github.com/spf13/afero"
 	"github.com/suzuki-shunsuke/rgo/pkg/cmdexec"
 	"github.com/suzuki-shunsuke/rgo/pkg/controller/run"
@@ -85,6 +86,7 @@ func runAction(ctx context.Context, logger *slogutil.Logger, cmd *cli.Command, a
 		Stdout: cmd.Writer,
 		Stderr: cmd.ErrWriter,
 	}
-	ctrl := run.New(afero.NewOsFs(), param, exec)
+	ghClient := github.NewClient(nil).WithAuthToken(os.Getenv("GITHUB_TOKEN"))
+	ctrl := run.New(afero.NewOsFs(), param, exec, ghClient.Repositories)
 	return ctrl.Run(ctx, logger.Logger)
 }

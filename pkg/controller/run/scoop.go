@@ -67,7 +67,11 @@ func (c *Controller) pushScoop(ctx context.Context, logger *slog.Logger, repo co
 
 	branch := repo.Branch
 	if branch == "" {
-		branch = "main" // TODO Get the default branch by GitHub API
+		var err error
+		branch, err = c.getDefaultBranch(ctx, logger, repo.Owner, repo.Name)
+		if err != nil {
+			return fmt.Errorf("get default branch: %w", err)
+		}
 	}
 
 	if err := c.exec.Run(ctx, logger, repoDir, "git", "push", "origin", branch); err != nil {
