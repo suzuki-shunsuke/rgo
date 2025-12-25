@@ -53,7 +53,6 @@ func Run(ctx context.Context, logger *slogutil.Logger, env *urfave.Env) error {
 				Arguments: []cli.Argument{
 					&cli.StringArg{
 						Name:        "version",
-						UsageText:   "version to release (e.g., v1.0.0)",
 						Destination: &runArgs.Version,
 					},
 				},
