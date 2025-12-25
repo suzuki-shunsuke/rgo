@@ -53,7 +53,11 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 	// Get run ID if not provided
 	if runID == "" {
 		logger.Info("waiting for workflow to start")
-		time.Sleep(10 * time.Second)
+		select {
+		case <-time.After(10 * time.Second):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		runID, err = c.getRunID(ctx, logger, workflow)
 		if err != nil {
 			return err
