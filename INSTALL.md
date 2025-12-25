@@ -31,6 +31,8 @@ scoop install rgo
 
 You can install rgo using [aqua](https://aquaproj.github.io/).
 
+[aqua-registry >= v4.448.0](https://github.com/aquaproj/aqua-registry/releases/tag/v4.448.0)
+
 ```sh
 aqua g -i suzuki-shunsuke/rgo
 ```
