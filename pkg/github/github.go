@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/google/go-github/v80/github"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
 
@@ -20,14 +19,11 @@ type (
 	GitObject          = github.GitObject
 	Commit             = github.Commit
 	PullRequestComment = github.PullRequestComment
+	Repository         = github.Repository
 )
 
-func New(ctx context.Context, logE *logrus.Entry) *Client {
+func New(ctx context.Context) *Client {
 	return github.NewClient(getHTTPClientForGitHub(ctx, getGitHubToken()))
-}
-
-func Ptr[T any](v T) *T {
-	return github.Ptr(v)
 }
 
 func getGitHubToken() string {

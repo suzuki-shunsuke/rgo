@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	github.com/google/go-github/v80 v80.0.0
-	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/afero v1.15.0
 	github.com/suzuki-shunsuke/slog-util v0.3.0
 	github.com/suzuki-shunsuke/urfave-cli-v3-util v0.2.0

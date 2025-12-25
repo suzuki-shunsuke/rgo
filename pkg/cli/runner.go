@@ -5,10 +5,10 @@ import (
 	"errors"
 	"os"
 
-	"github.com/google/go-github/v80/github"
 	"github.com/spf13/afero"
 	"github.com/suzuki-shunsuke/rgo/pkg/cmdexec"
 	"github.com/suzuki-shunsuke/rgo/pkg/controller/run"
+	"github.com/suzuki-shunsuke/rgo/pkg/github"
 	"github.com/suzuki-shunsuke/slog-util/slogutil"
 	"github.com/suzuki-shunsuke/urfave-cli-v3-util/urfave"
 	"github.com/urfave/cli/v3"
@@ -86,7 +86,7 @@ func runAction(ctx context.Context, logger *slogutil.Logger, cmd *cli.Command, a
 		Stdout: cmd.Writer,
 		Stderr: cmd.ErrWriter,
 	}
-	ghClient := github.NewClient(nil).WithAuthToken(os.Getenv("GITHUB_TOKEN"))
+	ghClient := github.New(ctx)
 	ctrl := run.New(afero.NewOsFs(), param, exec, ghClient.Repositories)
 	return ctrl.Run(ctx, logger.Logger)
 }
