@@ -72,7 +72,7 @@ func readFile(fs afero.Fs, p string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open a config file: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 	cfg := &Config{}
 	if err := yaml.NewDecoder(f).Decode(cfg); err != nil {
 		return nil, fmt.Errorf("decode a config file as YAML: %w", err)
