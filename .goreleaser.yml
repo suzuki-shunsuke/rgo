@@ -1,0 +1,56 @@
+---
+version: 2
+project_name: rgo
+archives:
+  - name_template: "{{.ProjectName}}_{{.Os}}_{{.Arch}}"
+    files:
+      - LICENSE
+      - README.md
+      - third_party_licenses/**/*
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+builds:
+  - binary: rgo
+    main: cmd/rgo/main.go
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+release:
+  prerelease: "true"
+  header: |
+    [Pull Requests](https://github.com/suzuki-shunsuke/rgo/pulls?q=is%3Apr+milestone%3A{{.Tag}}) | [Issues](https://github.com/suzuki-shunsuke/rgo/issues?q=is%3Aissue+milestone%3A{{.Tag}}) | https://github.com/suzuki-shunsuke/rgo/compare/{{.PreviousTag}}...{{.Tag}}
+
+sboms:
+  - id: default
+    disable: false
+
+homebrew_casks:
+  - repository:
+      owner: suzuki-shunsuke
+      name: homebrew-rgo
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: https://github.com/suzuki-shunsuke/rgo
+    description: rgo is a CLI to release a Homebrew-tap recipe, Scoop App Manifest, and a winget manifest built with GoReleaser.
+    license: MIT
+    skip_upload: true
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/rgo"]
+          end
+
+scoops:
+  - description: rgo is a CLI to release a Homebrew-tap recipe, Scoop App Manifest, and a winget manifest built with GoReleaser.
+    license: MIT
+    skip_upload: true
+    repository:
+      owner: suzuki-shunsuke
+      name: scoop-bucket
