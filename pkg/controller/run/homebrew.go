@@ -79,7 +79,10 @@ func (c *Controller) pushHomebrew(ctx context.Context, logger *slog.Logger, repo
 func (c *Controller) copyFile(src, dst string) error {
 	data, err := afero.ReadFile(c.fs, src)
 	if err != nil {
-		return err
+		return fmt.Errorf("read file %s: %w", src, err)
 	}
-	return afero.WriteFile(c.fs, dst, data, 0o644) //nolint:gosec
+	if err := afero.WriteFile(c.fs, dst, data, 0o644); err != nil { //nolint:gosec
+		return fmt.Errorf("write file %s: %w", dst, err)
+	}
+	return nil
 }

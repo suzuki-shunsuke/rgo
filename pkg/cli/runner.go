@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/spf13/afero"
 	"github.com/suzuki-shunsuke/rgo/pkg/cmdexec"
@@ -89,5 +90,8 @@ func runAction(ctx context.Context, logger *slogutil.Logger, cmd *cli.Command, a
 	}
 	ghClient := github.New(ctx)
 	ctrl := run.New(afero.NewOsFs(), param, exec, ghClient.Repositories)
-	return ctrl.Run(ctx, logger.Logger)
+	if err := ctrl.Run(ctx, logger.Logger); err != nil {
+		return fmt.Errorf("run release: %w", err)
+	}
+	return nil
 }
