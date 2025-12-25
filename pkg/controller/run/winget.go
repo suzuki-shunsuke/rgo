@@ -39,13 +39,17 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 	if baseName == "" {
 		baseName = forkName
 	}
+	baseBranch := winget.Repository.PullRequest.Base.Branch
+	if baseBranch == "" {
+		baseBranch = "master" // TODO Get the default branch by GitHub API
+	}
 
-	// Expand branch template: "aqua-{{.Version}}" -> "aqua-v2.0.0"
-	branch := winget.Repository.Branch
-	branch = strings.ReplaceAll(branch, "{{.Version}}", c.param.Version)
-	branch = strings.ReplaceAll(branch, "{{ .Version }}", c.param.Version)
-	if branch == "" {
-		branch = "main" // TODO default branch name
+	// Expand headBranch template: "aqua-{{.Version}}" -> "aqua-v2.0.0"
+	headBranch := winget.Repository.Branch
+	headBranch = strings.ReplaceAll(headBranch, "{{.Version}}", c.param.Version)
+	headBranch = strings.ReplaceAll(headBranch, "{{ .Version }}", c.param.Version)
+	if headBranch == "" {
+		headBranch = "main" // TODO Get the default branch by GitHub API
 	}
 
 	wingetName := winget.Publisher + "." + projectName
@@ -56,7 +60,7 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 	logger.Info("setting up winget repository",
 		"base", baseURL,
 		"fork", forkURL,
-		"branch", branch)
+		"branch", headBranch)
 
 	// Initialize git repository
 	repoDir := filepath.Join(tempDir, "winget-pkgs")
@@ -69,12 +73,12 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 		return fmt.Errorf("add origin remote: %w", err)
 	}
 
-	if err := c.exec.Run(ctx, logger, repoDir, "git", "fetch", "--depth=1", "origin", "master"); err != nil {
+	if err := c.exec.Run(ctx, logger, repoDir, "git", "fetch", "--depth=1", "origin", baseBranch); err != nil {
 		return fmt.Errorf("fetch origin: %w", err)
 	}
 
 	// Create branch from origin/master
-	if err := c.exec.Run(ctx, logger, repoDir, "git", "checkout", "-b", branch, "origin/master"); err != nil {
+	if err := c.exec.Run(ctx, logger, repoDir, "git", "checkout", "-b", headBranch, "origin/"+baseBranch); err != nil {
 		return fmt.Errorf("checkout branch: %w", err)
 	}
 
@@ -105,7 +109,7 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 		return fmt.Errorf("add fork remote: %w", err)
 	}
 
-	if err := c.exec.Run(ctx, logger, repoDir, "git", "push", "fork", branch); err != nil {
+	if err := c.exec.Run(ctx, logger, repoDir, "git", "push", "fork", headBranch); err != nil {
 		return fmt.Errorf("push to fork: %w", err)
 	}
 
@@ -117,7 +121,7 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 
 	prTitle := fmt.Sprintf("New version: %s %s", wingetName, c.param.Version)
 	prBody := filepath.Join(repoDir, ".github", "PULL_REQUEST_TEMPLATE.md")
-	head := fmt.Sprintf("%s:%s", forkOwner, branch)
+	head := fmt.Sprintf("%s:%s", forkOwner, headBranch)
 
 	prArgs := []string{"pr", "create", "--title", prTitle, "--head", head}
 	if _, err := c.fs.Stat(prBody); err == nil {

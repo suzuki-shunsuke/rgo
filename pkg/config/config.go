@@ -35,8 +35,9 @@ type Winget struct {
 }
 
 type Repository struct {
-	Owner string `yaml:"owner"`
-	Name  string `yaml:"name"`
+	Owner  string `yaml:"owner"`
+	Name   string `yaml:"name"`
+	Branch string `yaml:"branch"`
 }
 
 type WingetRepo struct {
