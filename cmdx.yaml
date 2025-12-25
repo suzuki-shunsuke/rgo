@@ -26,8 +26,8 @@ tasks:
   - name: target
 - name: install
   short: i
-  description: Build and install pinact
-  usage: Build and install pinact by "go install" command
+  description: Build and install rgo
+  usage: Build and install rgo by "go install" command
   script: |
     sha=""
     if git diff --quiet; then
@@ -35,7 +35,7 @@ tasks:
     fi
     go install \
       -ldflags "-X main.version=v3.0.0-local -X main.commit=$sha -X main.date=$(date +"%Y-%m-%dT%H:%M:%SZ%:z" | tr -d '+')" \
-      ./cmd/pinact
+      ./cmd/rgo
 - name: run
   description: Run pinact via go run
   usage: Run pinact via go run
