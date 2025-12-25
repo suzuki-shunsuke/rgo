@@ -12,7 +12,9 @@ import (
 
 func (c *Controller) processHomebrew(ctx context.Context, logger *slog.Logger, cfg *config.Config, tempDir, artifactName, serverURL string) error {
 	homebrewDir := filepath.Join(tempDir, artifactName, "homebrew")
-	if exists, err := afero.Exists(c.fs, homebrewDir); err != nil || !exists {
+	if exists, err := afero.Exists(c.fs, homebrewDir); err != nil {
+		return fmt.Errorf("check homebrew directory existence: %w", err)
+	} else if !exists {
 		logger.Info("Homebrew-tap recipe isn't found")
 		return nil
 	}
@@ -76,10 +78,15 @@ func (c *Controller) pushHomebrew(ctx context.Context, logger *slog.Logger, repo
 	return nil
 }
 
+const filePermission = 0o644
+
 func (c *Controller) copyFile(src, dst string) error {
 	data, err := afero.ReadFile(c.fs, src)
 	if err != nil {
-		return err
+		return fmt.Errorf("read file %s: %w", src, err)
 	}
-	return afero.WriteFile(c.fs, dst, data, 0o644) //nolint:gosec
+	if err := afero.WriteFile(c.fs, dst, data, filePermission); err != nil {
+		return fmt.Errorf("write file %s: %w", dst, err)
+	}
+	return nil
 }

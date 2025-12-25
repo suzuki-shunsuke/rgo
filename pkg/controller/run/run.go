@@ -29,16 +29,9 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 		return fmt.Errorf("read a config file: %w", err)
 	}
 
-	runID := c.param.RunID
-
-	// Create and push tag if run_id is not provided
-	if runID == "" {
-		if err := c.createTag(ctx, logger, c.param.Version); err != nil {
-			return err
-		}
-		if err := c.pushTag(ctx, logger, c.param.Version); err != nil {
-			return err
-		}
+	runID, err := c.prepareRelease(ctx, logger)
+	if err != nil {
+		return err
 	}
 
 	// Skip for prerelease versions
@@ -47,70 +40,102 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 		return nil
 	}
 
+	runID, err = c.waitForWorkflow(ctx, logger, runID)
+	if err != nil {
+		return err
+	}
+
+	tempDir, err := c.downloadReleaseArtifacts(ctx, logger, runID)
+	if err != nil {
+		return err
+	}
+
+	if err := c.publishPackages(ctx, logger, cfg, tempDir); err != nil {
+		return err
+	}
+
+	logger.Info("release completed successfully")
+	return nil
+}
+
+func (c *Controller) prepareRelease(ctx context.Context, logger *slog.Logger) (string, error) {
+	runID := c.param.RunID
+	if runID != "" {
+		return runID, nil
+	}
+
+	if err := c.createTag(ctx, logger, c.param.Version); err != nil {
+		return "", err
+	}
+	if err := c.pushTag(ctx, logger, c.param.Version); err != nil {
+		return "", err
+	}
+	return "", nil
+}
+
+func (c *Controller) waitForWorkflow(ctx context.Context, logger *slog.Logger, runID string) (string, error) {
 	workflow := c.param.Workflow
 	if workflow == "" {
 		workflow = "release.yaml"
 	}
 
-	// Get run ID if not provided
 	if runID == "" {
 		logger.Info("waiting for workflow to start")
-		if err := wait(ctx, 10*time.Second); err != nil {
-			return err
+		if err := wait(ctx, 10*time.Second); err != nil { //nolint:mnd
+			return "", err
 		}
+		var err error
 		runID, err = c.getRunID(ctx, logger, workflow)
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	// Wait for workflow to complete
 	logger.Info("waiting for workflow to complete", "run_id", runID)
 	if err := c.watchRun(ctx, logger, runID); err != nil {
-		return err
+		return "", err
 	}
+	return runID, nil
+}
 
-	// Create temporary directory
+func (c *Controller) downloadReleaseArtifacts(ctx context.Context, logger *slog.Logger, runID string) (string, error) {
 	tempDir, err := afero.TempDir(c.fs, "", "rgo-")
 	if err != nil {
-		return fmt.Errorf("create a temporary directory: %w", err)
+		return "", fmt.Errorf("create a temporary directory: %w", err)
 	}
 	logger.Info("created temporary directory", "path", tempDir)
 
-	// Download artifacts
-	artifactName := "goreleaser"
 	logger.Info("downloading artifacts")
 	if err := c.downloadArtifacts(ctx, logger, tempDir, runID); err != nil {
-		return err
+		return "", err
 	}
+	return tempDir, nil
+}
 
+func (c *Controller) publishPackages(ctx context.Context, logger *slog.Logger, cfg *config.Config, tempDir string) error {
 	serverURL := os.Getenv("GITHUB_SERVER_URL")
 	if serverURL == "" {
 		serverURL = "https://github.com"
 	}
+	artifactName := "goreleaser"
 
-	// Process Homebrew
 	if c.shouldPublish("homebrew") {
 		if err := c.processHomebrew(ctx, logger, cfg, tempDir, artifactName, serverURL); err != nil {
 			return fmt.Errorf("process Homebrew: %w", err)
 		}
 	}
 
-	// Process Scoop
 	if c.shouldPublish("scoop") {
 		if err := c.processScoop(ctx, logger, cfg, tempDir, artifactName, serverURL); err != nil {
 			return fmt.Errorf("process Scoop: %w", err)
 		}
 	}
 
-	// Process Winget
 	if c.shouldPublish("winget") {
 		if err := c.processWinget(ctx, logger, cfg, tempDir, artifactName); err != nil {
 			return fmt.Errorf("process Winget: %w", err)
 		}
 	}
-
-	logger.Info("release completed successfully")
 	return nil
 }
 
@@ -119,7 +144,7 @@ func wait(ctx context.Context, d time.Duration) error {
 	case <-time.After(d):
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("wait interrupted: %w", ctx.Err())
 	}
 }
 

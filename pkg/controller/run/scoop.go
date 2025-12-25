@@ -36,7 +36,19 @@ func (c *Controller) pushScoop(ctx context.Context, logger *slog.Logger, repo co
 		return fmt.Errorf("clone scoop repository: %w", err)
 	}
 
-	// Copy scoop JSON files
+	if err := c.copyScoopFiles(tempDir, artifactName, repoDir); err != nil {
+		return err
+	}
+
+	logger.Info("committing and pushing scoop changes")
+	if err := c.commitAndPushScoop(ctx, logger, repo, projectName, repoDir); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Controller) copyScoopFiles(tempDir, artifactName, repoDir string) error {
 	scoopDir := filepath.Join(tempDir, artifactName, "scoop")
 	entries, err := afero.ReadDir(c.fs, scoopDir)
 	if err != nil {
@@ -53,9 +65,10 @@ func (c *Controller) pushScoop(ctx context.Context, logger *slog.Logger, repo co
 			return fmt.Errorf("copy scoop file: %w", err)
 		}
 	}
+	return nil
+}
 
-	// Commit and push
-	logger.Info("committing and pushing scoop changes")
+func (c *Controller) commitAndPushScoop(ctx context.Context, logger *slog.Logger, repo config.Repository, projectName, repoDir string) error {
 	if err := c.exec.Run(ctx, logger, repoDir, "git", "add", "*.json"); err != nil {
 		return fmt.Errorf("git add: %w", err)
 	}
@@ -65,13 +78,9 @@ func (c *Controller) pushScoop(ctx context.Context, logger *slog.Logger, repo co
 		return fmt.Errorf("git commit: %w", err)
 	}
 
-	branch := repo.Branch
-	if branch == "" {
-		var err error
-		branch, err = c.getDefaultBranch(ctx, logger, repo.Owner, repo.Name)
-		if err != nil {
-			return fmt.Errorf("get default branch: %w", err)
-		}
+	branch, err := c.getBranch(ctx, logger, repo)
+	if err != nil {
+		return err
 	}
 
 	if err := c.exec.Run(ctx, logger, repoDir, "git", "push", "origin", branch); err != nil {
@@ -79,4 +88,15 @@ func (c *Controller) pushScoop(ctx context.Context, logger *slog.Logger, repo co
 	}
 
 	return nil
+}
+
+func (c *Controller) getBranch(ctx context.Context, logger *slog.Logger, repo config.Repository) (string, error) {
+	if repo.Branch != "" {
+		return repo.Branch, nil
+	}
+	branch, err := c.getDefaultBranch(ctx, logger, repo.Owner, repo.Name)
+	if err != nil {
+		return "", fmt.Errorf("get default branch: %w", err)
+	}
+	return branch, nil
 }

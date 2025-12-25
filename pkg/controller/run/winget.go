@@ -29,68 +29,106 @@ func (c *Controller) processWinget(ctx context.Context, logger *slog.Logger, cfg
 	return nil
 }
 
+type wingetConfig struct {
+	forkOwner  string
+	forkName   string
+	baseOwner  string
+	baseName   string
+	baseBranch string
+	headBranch string
+	baseURL    string
+	forkURL    string
+	wingetName string
+}
+
 func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget config.Winget, projectName, tempDir, artifactName string) error {
-	// Get configuration
-	forkOwner := winget.Repository.Owner
-	forkName := winget.Repository.Name
-
-	baseOwner := winget.Repository.PullRequest.Base.Owner
-	baseName := winget.Repository.PullRequest.Base.Name
-	if baseName == "" {
-		baseName = forkName
+	cfg, err := c.buildWingetConfig(ctx, logger, winget, projectName)
+	if err != nil {
+		return err
 	}
-	baseBranch := winget.Repository.PullRequest.Base.Branch
-	if baseBranch == "" {
+
+	repoDir, err := c.setupWingetRepo(ctx, logger, tempDir, cfg)
+	if err != nil {
+		return err
+	}
+
+	if err := c.updateWingetManifests(ctx, logger, tempDir, artifactName, repoDir, cfg.wingetName); err != nil {
+		return err
+	}
+
+	if err := c.pushWingetToFork(ctx, logger, repoDir, cfg); err != nil {
+		return err
+	}
+
+	return c.createWingetPR(ctx, logger, repoDir, cfg)
+}
+
+func (c *Controller) buildWingetConfig(ctx context.Context, logger *slog.Logger, winget config.Winget, projectName string) (*wingetConfig, error) {
+	cfg := &wingetConfig{
+		forkOwner: winget.Repository.Owner,
+		forkName:  winget.Repository.Name,
+		baseOwner: winget.Repository.PullRequest.Base.Owner,
+		baseName:  winget.Repository.PullRequest.Base.Name,
+	}
+
+	if cfg.baseName == "" {
+		cfg.baseName = cfg.forkName
+	}
+
+	cfg.baseBranch = winget.Repository.PullRequest.Base.Branch
+	if cfg.baseBranch == "" {
 		var err error
-		baseBranch, err = c.getDefaultBranch(ctx, logger, baseOwner, baseName)
+		cfg.baseBranch, err = c.getDefaultBranch(ctx, logger, cfg.baseOwner, cfg.baseName)
 		if err != nil {
-			return fmt.Errorf("get base repository default branch: %w", err)
+			return nil, fmt.Errorf("get base repository default branch: %w", err)
 		}
 	}
 
-	// Expand headBranch template: "aqua-{{.Version}}" -> "aqua-v2.0.0"
-	headBranch := winget.Repository.Branch
-	headBranch = strings.ReplaceAll(headBranch, "{{.Version}}", c.param.Version)
-	headBranch = strings.ReplaceAll(headBranch, "{{ .Version }}", c.param.Version)
-	if headBranch == "" {
+	cfg.headBranch = winget.Repository.Branch
+	cfg.headBranch = strings.ReplaceAll(cfg.headBranch, "{{.Version}}", c.param.Version)
+	cfg.headBranch = strings.ReplaceAll(cfg.headBranch, "{{ .Version }}", c.param.Version)
+	if cfg.headBranch == "" {
 		var err error
-		headBranch, err = c.getDefaultBranch(ctx, logger, forkOwner, forkName)
+		cfg.headBranch, err = c.getDefaultBranch(ctx, logger, cfg.forkOwner, cfg.forkName)
 		if err != nil {
-			return fmt.Errorf("get fork repository default branch: %w", err)
+			return nil, fmt.Errorf("get fork repository default branch: %w", err)
 		}
 	}
 
-	wingetName := winget.Publisher + "." + projectName
+	cfg.wingetName = winget.Publisher + "." + projectName
+	cfg.baseURL = fmt.Sprintf("https://github.com/%s/%s", cfg.baseOwner, cfg.baseName)
+	cfg.forkURL = fmt.Sprintf("https://github.com/%s/%s", cfg.forkOwner, cfg.forkName)
 
-	baseURL := fmt.Sprintf("https://github.com/%s/%s", baseOwner, baseName)
-	forkURL := fmt.Sprintf("https://github.com/%s/%s", forkOwner, forkName)
+	return cfg, nil
+}
 
+func (c *Controller) setupWingetRepo(ctx context.Context, logger *slog.Logger, tempDir string, cfg *wingetConfig) (string, error) {
 	logger.Info("setting up winget repository",
-		"base", baseURL,
-		"fork", forkURL,
-		"branch", headBranch)
+		"base", cfg.baseURL,
+		"fork", cfg.forkURL,
+		"branch", cfg.headBranch)
 
-	// Initialize git repository
 	repoDir := filepath.Join(tempDir, "winget-pkgs")
 	if err := c.exec.Run(ctx, logger, tempDir, "git", "init", "winget-pkgs"); err != nil {
-		return fmt.Errorf("git init: %w", err)
+		return "", fmt.Errorf("git init: %w", err)
 	}
 
-	// Add base remote and fetch
-	if err := c.exec.Run(ctx, logger, repoDir, "git", "remote", "add", "origin", baseURL); err != nil {
-		return fmt.Errorf("add origin remote: %w", err)
+	if err := c.exec.Run(ctx, logger, repoDir, "git", "remote", "add", "origin", cfg.baseURL); err != nil {
+		return "", fmt.Errorf("add origin remote: %w", err)
 	}
 
-	if err := c.exec.Run(ctx, logger, repoDir, "git", "fetch", "--depth=1", "origin", baseBranch); err != nil {
-		return fmt.Errorf("fetch origin: %w", err)
+	if err := c.exec.Run(ctx, logger, repoDir, "git", "fetch", "--depth=1", "origin", cfg.baseBranch); err != nil {
+		return "", fmt.Errorf("fetch origin: %w", err)
 	}
 
-	// Create branch from origin/master
-	if err := c.exec.Run(ctx, logger, repoDir, "git", "checkout", "-b", headBranch, "origin/"+baseBranch); err != nil {
-		return fmt.Errorf("checkout branch: %w", err)
+	if err := c.exec.Run(ctx, logger, repoDir, "git", "checkout", "-b", cfg.headBranch, "origin/"+cfg.baseBranch); err != nil {
+		return "", fmt.Errorf("checkout branch: %w", err)
 	}
 
-	// Remove existing manifests directory and copy new one
+	return repoDir, nil
+}
+
+func (c *Controller) updateWingetManifests(ctx context.Context, logger *slog.Logger, tempDir, artifactName, repoDir, wingetName string) error {
 	manifestsDir := filepath.Join(repoDir, "manifests")
 	if err := c.fs.RemoveAll(manifestsDir); err != nil {
 		return fmt.Errorf("remove manifests directory: %w", err)
@@ -101,7 +139,6 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 		return fmt.Errorf("copy manifests: %w", err)
 	}
 
-	// Add all manifest files
 	logger.Info("committing winget changes")
 	if err := c.addManifestFiles(ctx, logger, c.exec, repoDir); err != nil {
 		return fmt.Errorf("add manifest files: %w", err)
@@ -112,24 +149,30 @@ func (c *Controller) pushWinget(ctx context.Context, logger *slog.Logger, winget
 		return fmt.Errorf("git commit: %w", err)
 	}
 
-	// Add fork remote and push
-	if err := c.exec.Run(ctx, logger, repoDir, "git", "remote", "add", "fork", forkURL); err != nil {
+	return nil
+}
+
+func (c *Controller) pushWingetToFork(ctx context.Context, logger *slog.Logger, repoDir string, cfg *wingetConfig) error {
+	if err := c.exec.Run(ctx, logger, repoDir, "git", "remote", "add", "fork", cfg.forkURL); err != nil {
 		return fmt.Errorf("add fork remote: %w", err)
 	}
 
-	if err := c.exec.Run(ctx, logger, repoDir, "git", "push", "fork", headBranch); err != nil {
+	if err := c.exec.Run(ctx, logger, repoDir, "git", "push", "fork", cfg.headBranch); err != nil {
 		return fmt.Errorf("push to fork: %w", err)
 	}
 
-	// Create pull request
+	return nil
+}
+
+func (c *Controller) createWingetPR(ctx context.Context, logger *slog.Logger, repoDir string, cfg *wingetConfig) error {
 	logger.Info("creating pull request")
-	if err := c.exec.Run(ctx, logger, repoDir, "gh", "repo", "set-default", baseURL); err != nil {
+	if err := c.exec.Run(ctx, logger, repoDir, "gh", "repo", "set-default", cfg.baseURL); err != nil {
 		return fmt.Errorf("set default repo: %w", err)
 	}
 
-	prTitle := fmt.Sprintf("New version: %s %s", wingetName, c.param.Version)
+	prTitle := fmt.Sprintf("New version: %s %s", cfg.wingetName, c.param.Version)
 	prBody := filepath.Join(repoDir, ".github", "PULL_REQUEST_TEMPLATE.md")
-	head := fmt.Sprintf("%s:%s", forkOwner, headBranch)
+	head := fmt.Sprintf("%s:%s", cfg.forkOwner, cfg.headBranch)
 
 	prArgs := []string{"pr", "create", "--title", prTitle, "--head", head}
 	if _, err := c.fs.Stat(prBody); err == nil {
@@ -154,39 +197,48 @@ func (c *Controller) addManifestFiles(ctx context.Context, logger *slog.Logger, 
 	files := []string{}
 	if err := fs.WalkDir(afero.NewIOFS(c.fs), manifestsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("walk directory: %w", err)
 		}
 		if d.IsDir() {
 			return nil
 		}
 		relPath, err := filepath.Rel(repoDir, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("get relative path: %w", err)
 		}
 		files = append(files, relPath)
 		return nil
 	}); err != nil {
-		return err
+		return fmt.Errorf("walk manifests directory: %w", err)
 	}
-	return exec.Run(ctx, logger, repoDir, "git", append([]string{"add"}, files...)...)
+	if err := exec.Run(ctx, logger, repoDir, "git", append([]string{"add"}, files...)...); err != nil {
+		return fmt.Errorf("git add: %w", err)
+	}
+	return nil
 }
 
 func (c *Controller) copyDir(src, dst string) error {
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("walk directory: %w", err)
 		}
 
 		relPath, err := filepath.Rel(src, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("get relative path: %w", err)
 		}
 		dstPath := filepath.Join(dst, relPath)
 
 		if d.IsDir() {
-			return c.fs.MkdirAll(dstPath, 0o755)
+			if err := c.fs.MkdirAll(dstPath, 0o755); err != nil { //nolint:mnd
+				return fmt.Errorf("create directory %s: %w", dstPath, err)
+			}
+			return nil
 		}
 
 		return c.copyFile(path, dstPath)
-	})
+	}); err != nil {
+		return fmt.Errorf("copy directory: %w", err)
+	}
+	return nil
 }
