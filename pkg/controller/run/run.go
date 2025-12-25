@@ -53,10 +53,8 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 	// Get run ID if not provided
 	if runID == "" {
 		logger.Info("waiting for workflow to start")
-		select {
-		case <-time.After(10 * time.Second):
-		case <-ctx.Done():
-			return ctx.Err()
+		if err := wait(ctx, 10*time.Second); err != nil {
+			return err
 		}
 		runID, err = c.getRunID(ctx, logger, workflow)
 		if err != nil {
@@ -106,4 +104,13 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 
 	logger.Info("release completed successfully")
 	return nil
+}
+
+func wait(ctx context.Context, d time.Duration) error {
+	select {
+	case <-time.After(d):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
