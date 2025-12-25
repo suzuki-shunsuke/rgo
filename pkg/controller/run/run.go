@@ -27,11 +27,6 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 		return fmt.Errorf("read a config file: %w", err)
 	}
 
-	repo, err := c.exec.Output(ctx, logger, "", "gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner")
-	if err != nil {
-		return fmt.Errorf("get repository name: %w", err)
-	}
-
 	runID := c.param.RunID
 
 	// Create and push tag if run_id is not provided
@@ -81,7 +76,7 @@ func (c *Controller) Run(ctx context.Context, logger *slog.Logger) error {
 	// Download artifacts
 	artifactName := "goreleaser"
 	logger.Info("downloading artifacts")
-	if err := c.downloadArtifacts(ctx, logger, tempDir, repo, runID); err != nil {
+	if err := c.downloadArtifacts(ctx, logger, tempDir, runID); err != nil {
 		return err
 	}
 
