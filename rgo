@@ -3,6 +3,7 @@
 set -euxo pipefail
 
 version=$1
+run_id=${2:-}
 
 WORKFLOW=${WORKFLOW:-release.yaml}
 GITHUB_SERVER_URL=${GITHUB_SERVER_URL:-https://github.com}
@@ -10,16 +11,20 @@ GITHUB_REPOSITORY=$(gh repo view --json nameWithOwner --jq ".nameWithOwner")
 GITHUB_REPOSITORY_OWNER=${GITHUB_REPOSITORY%/*}
 GITHUB_REPOSITORY_NAME=${GITHUB_REPOSITORY#*/}
 
-git tag -m "chore: release $version" "$version"
-git push origin "$version"
+if [ -z "$run_id" ]; then
+    git tag -m "chore: release $version" "$version"
+    git push origin "$version"
+fi
 
 if [[ "$version" =~ - ]]; then
     exit 0
 fi
 
-# Get a workflow run id
-sleep 10 # Wait for the workflow run to start
-run_id=$(gh run list -w "$WORKFLOW" -L 1 --json databaseId --jq '.[].databaseId')
+if [ -z "$run_id" ]; then
+    # Get a workflow run id
+    sleep 10 # Wait for the workflow run to start
+    run_id=$(gh run list -w "$WORKFLOW" -L 1 --json databaseId --jq '.[].databaseId')
+fi
 
 # Wait until the workflow run completes
 gh run watch --exit-status "$run_id"
@@ -37,10 +42,10 @@ gh run download -R "$GITHUB_REPOSITORY" "$run_id" --pattern "$artifact_name"
 if [ -d "${artifact_name}/homebrew" ]; then
     echo "[INFO] Checking out homebrew-${GITHUB_REPOSITORY_NAME}" >&2
     git clone --depth 1 "$GITHUB_SERVER_URL/${GITHUB_REPOSITORY_OWNER}/homebrew-${GITHUB_REPOSITORY_NAME}"
-    cp "${artifact_name}"/homebrew/*.rb "homebrew-${GITHUB_REPOSITORY_NAME}"
+    cp -R "${artifact_name}"/homebrew/* "homebrew-${GITHUB_REPOSITORY_NAME}"
     pushd "homebrew-${GITHUB_REPOSITORY_NAME}"
     echo "[INFO] Commit and push homebrew-${GITHUB_REPOSITORY_NAME}" >&2
-    git add *.rb
+    git add **/*.rb
     git commit -m "Brew formula update for $GITHUB_REPOSITORY_NAME version $version"
     git push origin main
     popd
@@ -58,8 +63,41 @@ if [ -d "${artifact_name}/scoop" ]; then
     git add *.json
     git commit -m "Scoop update for $GITHUB_REPOSITORY_NAME version $version"
     git push origin main
+    popd
 else
     echo "[INFO] Scoop manifest isn't found" >&2
+fi
+
+# Winget
+if [ -d "${artifact_name}/winget" ]; then
+    # Checkout suzuki-shunsuke/winget-pkgs
+    # Push to suzuki-shunsuke/winget-pkgs
+    # Create a pull request to microsoft/winget-pkgs
+    WINGET_REPO_OWNER=suzuki-shunsuke
+    WINGET_NAME=aquaproj.aqua
+    echo "[INFO] Checking out winget-pkgs" >&2
+    git init winget-pkgs
+    pushd "winget-pkgs"
+    git remote add origin https://github.com/microsoft/winget-pkgs
+    git fetch --depth=1 origin master
+    branch="$WINGET_NAME-$version"
+    git checkout -b "$branch" origin/master
+    rm -R manifests
+    cp -R "../${artifact_name}"/winget/manifests .
+    echo "[INFO] Commit and push winget" >&2
+    find manifests -type f | xargs git add
+    git commit -m "Update $WINGET_NAME to $version"
+    git remote add fork "https://github.com/$WINGET_REPO_OWNER/winget-pkgs"
+    git push fork "$branch"
+    gh repo set-default https://github.com/microsoft/winget-pkgs
+    gh pr create \
+        --title "New version: $WINGET_NAME $version" \
+        --head "${WINGET_REPO_OWNER}:$branch" \
+        --body-file .github/PULL_REQUEST_TEMPLATE.md \
+        --web
+    popd
+else
+    echo "[INFO] Winget manifest isn't found" >&2
 fi
 
 echo "[INFO] Removing the temporary directory" >&2

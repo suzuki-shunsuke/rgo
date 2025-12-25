@@ -1,0 +1,26 @@
+---
+name: integration test
+on: workflow_call
+jobs:
+  integration-test:
+    runs-on: ubuntu-24.04
+    permissions: {}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version-file: go.mod
+      - uses: aquaproj/aqua-installer@11dd79b4e498d471a9385aa9fb7f62bb5f52a73c # v4.0.4
+        with:
+          aqua_version: v2.56.0
+        env:
+          AQUA_GITHUB_TOKEN: ${{github.token}}
+      # - run: rm "$(aqua root-dir)/bin/rgo"
+      - run: |
+          go install \
+            -ldflags "-X main.version=v1.0.0 -X main.commit=$GITHUB_SHA -X main.date=$(date +"%Y-%m-%dT%H:%M:%SZ%:z" | tr -d '+')" \
+            ./cmd/rgo
+      - run: rgo -v
