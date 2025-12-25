@@ -31,7 +31,7 @@ func (c *Controller) watchRun(ctx context.Context, logger *slog.Logger, runID st
 }
 
 func (c *Controller) downloadArtifacts(ctx context.Context, logger *slog.Logger, dir, runID string) error {
-	if err := c.exec.Run(ctx, logger, dir, "gh", "run", "download", runID, "--pattern", "goreleaser"); err != nil {
+	if err := c.exec.Run(ctx, logger, "", "gh", "run", "download", runID, "--pattern", "goreleaser", "-D", dir); err != nil {
 		return fmt.Errorf("download artifacts: %w", err)
 	}
 	return nil

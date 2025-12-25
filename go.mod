@@ -3,6 +3,7 @@ module github.com/suzuki-shunsuke/rgo
 go 1.25.0
 
 require (
+	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v80 v80.0.0
 	github.com/spf13/afero v1.15.0
 	github.com/suzuki-shunsuke/slog-util v0.3.0

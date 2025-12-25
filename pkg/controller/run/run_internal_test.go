@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-github/v80/github"
 	"github.com/spf13/afero"
 )
@@ -43,7 +44,7 @@ func (m *mockRepositoriesClient) Get(ctx context.Context, owner, repo string) (*
 	return &github.Repository{}, nil, nil
 }
 
-func TestShouldPublish(t *testing.T) {
+func TestController_shouldPublish(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
@@ -104,12 +105,12 @@ func TestShouldPublish(t *testing.T) {
 	}
 }
 
-func TestWait(t *testing.T) {
+func Test_wait(t *testing.T) {
 	t.Parallel()
 
 	t.Run("completes after duration", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := t.Context()
 		start := time.Now()
 		err := wait(ctx, 10*time.Millisecond)
 		elapsed := time.Since(start)
@@ -124,7 +125,7 @@ func TestWait(t *testing.T) {
 
 	t.Run("cancels on context done", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel() // Cancel immediately
 
 		err := wait(ctx, 1*time.Hour)
@@ -135,7 +136,7 @@ func TestWait(t *testing.T) {
 
 	t.Run("respects context deadline", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 		defer cancel()
 
 		err := wait(ctx, 1*time.Hour)
@@ -145,7 +146,7 @@ func TestWait(t *testing.T) {
 	})
 }
 
-func TestCreateTag(t *testing.T) {
+func TestController_createTag(t *testing.T) {
 	t.Parallel()
 
 	t.Run("success", func(t *testing.T) {
@@ -159,7 +160,7 @@ func TestCreateTag(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, exec, nil)
 
-		err := c.createTag(context.Background(), slog.Default(), "v1.0.0")
+		err := c.createTag(t.Context(), slog.Default(), "v1.0.0")
 		if err != nil {
 			t.Errorf("createTag() error = %v, want nil", err)
 		}
@@ -184,14 +185,14 @@ func TestCreateTag(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, exec, nil)
 
-		err := c.createTag(context.Background(), slog.Default(), "v1.0.0")
+		err := c.createTag(t.Context(), slog.Default(), "v1.0.0")
 		if err == nil {
 			t.Error("createTag() error = nil, want error")
 		}
 	})
 }
 
-func TestPushTag(t *testing.T) {
+func TestController_pushTag(t *testing.T) {
 	t.Parallel()
 
 	t.Run("success", func(t *testing.T) {
@@ -205,19 +206,14 @@ func TestPushTag(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, exec, nil)
 
-		err := c.pushTag(context.Background(), slog.Default(), "v1.0.0")
+		err := c.pushTag(t.Context(), slog.Default(), "v1.0.0")
 		if err != nil {
 			t.Errorf("pushTag() error = %v, want nil", err)
 		}
 
 		expectedArgs := []string{"", "git", "push", "origin", "v1.0.0"}
-		if len(capturedArgs) != len(expectedArgs) {
-			t.Errorf("pushTag() args = %v, want %v", capturedArgs, expectedArgs)
-		}
-		for i, arg := range expectedArgs {
-			if capturedArgs[i] != arg {
-				t.Errorf("pushTag() args[%d] = %v, want %v", i, capturedArgs[i], arg)
-			}
+		if diff := cmp.Diff(expectedArgs, capturedArgs); diff != "" {
+			t.Errorf("args mismatch (-want +got):\n%s", diff)
 		}
 	})
 
@@ -230,14 +226,14 @@ func TestPushTag(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, exec, nil)
 
-		err := c.pushTag(context.Background(), slog.Default(), "v1.0.0")
+		err := c.pushTag(t.Context(), slog.Default(), "v1.0.0")
 		if err == nil {
 			t.Error("pushTag() error = nil, want error")
 		}
 	})
 }
 
-func TestGetDefaultBranch(t *testing.T) {
+func TestController_getDefaultBranch(t *testing.T) {
 	t.Parallel()
 
 	t.Run("success", func(t *testing.T) {
@@ -255,7 +251,7 @@ func TestGetDefaultBranch(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, nil, ghRepo)
 
-		branch, err := c.getDefaultBranch(context.Background(), slog.Default(), "test-owner", "test-repo")
+		branch, err := c.getDefaultBranch(t.Context(), slog.Default(), "test-owner", "test-repo")
 		if err != nil {
 			t.Errorf("getDefaultBranch() error = %v, want nil", err)
 		}
@@ -273,14 +269,14 @@ func TestGetDefaultBranch(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, nil, ghRepo)
 
-		_, err := c.getDefaultBranch(context.Background(), slog.Default(), "owner", "repo")
+		_, err := c.getDefaultBranch(t.Context(), slog.Default(), "owner", "repo")
 		if err == nil {
 			t.Error("getDefaultBranch() error = nil, want error")
 		}
 	})
 }
 
-func TestGetRunID(t *testing.T) {
+func TestController_getRunID(t *testing.T) {
 	t.Parallel()
 
 	t.Run("success", func(t *testing.T) {
@@ -296,7 +292,7 @@ func TestGetRunID(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, exec, nil)
 
-		runID, err := c.getRunID(context.Background(), slog.Default(), "release.yaml")
+		runID, err := c.getRunID(t.Context(), slog.Default(), "release.yaml")
 		if err != nil {
 			t.Errorf("getRunID() error = %v, want nil", err)
 		}
@@ -314,14 +310,14 @@ func TestGetRunID(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, exec, nil)
 
-		_, err := c.getRunID(context.Background(), slog.Default(), "release.yaml")
+		_, err := c.getRunID(t.Context(), slog.Default(), "release.yaml")
 		if err == nil {
 			t.Error("getRunID() error = nil, want error")
 		}
 	})
 }
 
-func TestWatchRun(t *testing.T) {
+func TestController_watchRun(t *testing.T) {
 	t.Parallel()
 
 	t.Run("success", func(t *testing.T) {
@@ -336,7 +332,7 @@ func TestWatchRun(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, exec, nil)
 
-		err := c.watchRun(context.Background(), slog.Default(), "12345")
+		err := c.watchRun(t.Context(), slog.Default(), "12345")
 		if err != nil {
 			t.Errorf("watchRun() error = %v, want nil", err)
 		}
@@ -351,14 +347,14 @@ func TestWatchRun(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, exec, nil)
 
-		err := c.watchRun(context.Background(), slog.Default(), "12345")
+		err := c.watchRun(t.Context(), slog.Default(), "12345")
 		if err == nil {
 			t.Error("watchRun() error = nil, want error")
 		}
 	})
 }
 
-func TestDownloadArtifacts(t *testing.T) {
+func TestController_downloadArtifacts(t *testing.T) {
 	t.Parallel()
 
 	t.Run("success", func(t *testing.T) {
@@ -367,20 +363,27 @@ func TestDownloadArtifacts(t *testing.T) {
 		exec := &mockExecutor{
 			runFunc: func(_ context.Context, _ *slog.Logger, dir string, name string, args ...string) error {
 				capturedDir = dir
-				if name != "gh" || args[0] != "run" || args[1] != "download" {
-					t.Errorf("unexpected command: %s %v", name, args)
+				if diff := cmp.Diff("", dir); diff != "" {
+					t.Errorf("downloadArtifacts() dir mismatch (-want +got):\n%s", diff)
+				}
+				if diff := cmp.Diff("gh", name); diff != "" {
+					t.Errorf("downloadArtifacts() name mismatch (-want +got):\n%s", diff)
+				}
+				expArgs := []string{"run", "download", "12345", "--pattern", "goreleaser", "-D", "/tmp/test"}
+				if diff := cmp.Diff(expArgs, args); diff != "" {
+					t.Errorf("downloadArtifacts() args mismatch (-want +got):\n%s", diff)
 				}
 				return nil
 			},
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, exec, nil)
 
-		err := c.downloadArtifacts(context.Background(), slog.Default(), "/tmp/test", "12345")
+		err := c.downloadArtifacts(t.Context(), slog.Default(), "/tmp/test", "12345")
 		if err != nil {
 			t.Errorf("downloadArtifacts() error = %v, want nil", err)
 		}
-		if capturedDir != "/tmp/test" {
-			t.Errorf("downloadArtifacts() dir = %v, want /tmp/test", capturedDir)
+		if capturedDir != "" {
+			t.Errorf(`downloadArtifacts() dir = %v, want ""`, capturedDir)
 		}
 	})
 
@@ -393,7 +396,7 @@ func TestDownloadArtifacts(t *testing.T) {
 		}
 		c := New(afero.NewMemMapFs(), &ParamRun{}, exec, nil)
 
-		err := c.downloadArtifacts(context.Background(), slog.Default(), "/tmp/test", "12345")
+		err := c.downloadArtifacts(t.Context(), slog.Default(), "/tmp/test", "12345")
 		if err == nil {
 			t.Error("downloadArtifacts() error = nil, want error")
 		}
