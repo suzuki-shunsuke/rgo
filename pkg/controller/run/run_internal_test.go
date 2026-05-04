@@ -12,6 +12,13 @@ import (
 	"github.com/spf13/afero"
 )
 
+const (
+	pubHomebrew = "homebrew"
+	pubScoop    = "scoop"
+	pubWinget   = "winget"
+	cmdRun      = "run"
+)
+
 // Mock Executor
 type mockExecutor struct {
 	runFunc    func(ctx context.Context, logger *slog.Logger, dir string, name string, args ...string) error
@@ -55,37 +62,37 @@ func TestController_shouldPublish(t *testing.T) {
 		{
 			name:    "empty publish list returns true",
 			publish: nil,
-			target:  "homebrew",
+			target:  pubHomebrew,
 			want:    true,
 		},
 		{
 			name:    "empty slice returns true",
 			publish: []string{},
-			target:  "scoop",
+			target:  pubScoop,
 			want:    true,
 		},
 		{
 			name:    "target in list returns true",
-			publish: []string{"homebrew", "scoop"},
-			target:  "scoop",
+			publish: []string{pubHomebrew, pubScoop},
+			target:  pubScoop,
 			want:    true,
 		},
 		{
 			name:    "target not in list returns false",
-			publish: []string{"homebrew", "scoop"},
-			target:  "winget",
+			publish: []string{pubHomebrew, pubScoop},
+			target:  pubWinget,
 			want:    false,
 		},
 		{
 			name:    "single item match",
-			publish: []string{"winget"},
-			target:  "winget",
+			publish: []string{pubWinget},
+			target:  pubWinget,
 			want:    true,
 		},
 		{
 			name:    "single item no match",
-			publish: []string{"winget"},
-			target:  "homebrew",
+			publish: []string{pubWinget},
+			target:  pubHomebrew,
 			want:    false,
 		},
 	}
@@ -284,7 +291,7 @@ func TestController_getRunID(t *testing.T) {
 		exec := &mockExecutor{
 			outputFunc: func(_ context.Context, _ *slog.Logger, _ string, _ string, args ...string) (string, error) {
 				// Verify command arguments
-				if args[0] != "run" || args[1] != "list" {
+				if args[0] != cmdRun || args[1] != "list" {
 					t.Errorf("unexpected args: %v", args)
 				}
 				return "12345", nil
@@ -324,7 +331,7 @@ func TestController_watchRun(t *testing.T) {
 		t.Parallel()
 		exec := &mockExecutor{
 			runFunc: func(_ context.Context, _ *slog.Logger, _ string, name string, args ...string) error {
-				if name != "gh" || args[0] != "run" || args[1] != "watch" {
+				if name != "gh" || args[0] != cmdRun || args[1] != "watch" {
 					t.Errorf("unexpected command: %s %v", name, args)
 				}
 				return nil
@@ -369,7 +376,7 @@ func TestController_downloadArtifacts(t *testing.T) {
 				if diff := cmp.Diff("gh", name); diff != "" {
 					t.Errorf("downloadArtifacts() name mismatch (-want +got):\n%s", diff)
 				}
-				expArgs := []string{"run", "download", "12345", "--pattern", "goreleaser", "-D", "/tmp/test"}
+				expArgs := []string{cmdRun, "download", "12345", "--pattern", "goreleaser", "-D", "/tmp/test"}
 				if diff := cmp.Diff(expArgs, args); diff != "" {
 					t.Errorf("downloadArtifacts() args mismatch (-want +got):\n%s", diff)
 				}
