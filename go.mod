@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-github/v86 v86.0.0
+	github.com/google/go-github/v87 v87.0.0
 	github.com/spf13/afero v1.15.0
 	github.com/suzuki-shunsuke/slog-util v0.3.2
 	github.com/suzuki-shunsuke/urfave-cli-v3-util v0.2.3

@@ -88,7 +88,10 @@ func runAction(ctx context.Context, logger *slogutil.Logger, cmd *cli.Command, a
 		Stdout: cmd.Writer,
 		Stderr: cmd.ErrWriter,
 	}
-	ghClient := github.New(ctx)
+	ghClient, err := github.New(ctx)
+	if err != nil {
+		return fmt.Errorf("create a GitHub client: %w", err)
+	}
 	ctrl := run.New(afero.NewOsFs(), param, exec, ghClient.Repositories)
 	if err := ctrl.Run(ctx, logger.Logger); err != nil {
 		return fmt.Errorf("run release: %w", err)

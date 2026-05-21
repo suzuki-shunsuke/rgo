@@ -2,10 +2,11 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 
-	"github.com/google/go-github/v86/github"
+	"github.com/google/go-github/v87/github"
 	"golang.org/x/oauth2"
 )
 
@@ -22,8 +23,12 @@ type (
 	Repository         = github.Repository
 )
 
-func New(ctx context.Context) *Client {
-	return github.NewClient(getHTTPClientForGitHub(ctx, getGitHubToken()))
+func New(ctx context.Context) (*Client, error) {
+	client, err := github.NewClient(github.WithHTTPClient(getHTTPClientForGitHub(ctx, getGitHubToken())))
+	if err != nil {
+		return nil, fmt.Errorf("create a GitHub client: %w", err)
+	}
+	return client, nil
 }
 
 func getGitHubToken() string {
